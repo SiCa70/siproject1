@@ -65,22 +65,35 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
     setPostcodeError(null);
 
     try {
-      // Get the postcode data
+      // Get the postcode data including constituency
       const postcodeResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
       const postcodeData = await postcodeResponse.json();
 
       if (postcodeData.status === 200) {
-        // Get constituency information from OpenStreetMap
+        // Get constituency data from postcodes.io
+        const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/autocomplete`);
+        const constituencyData = await constituencyResponse.json();
+        
+        console.log('Postcode data:', postcodeData.result);
+        console.log('Constituency data:', constituencyData);
+
+        // Get additional location data from OpenStreetMap
         const { latitude, longitude } = postcodeData.result;
         const osmResponse = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=en`
         );
         const osmData = await osmResponse.json();
+        console.log('OSM data:', osmData);
 
-        // Extract constituency information from OSM data
+        // Try to get constituency name from various sources
         let constituencyName = null;
-        if (osmData.address) {
-          // Try different possible fields for constituency
+        
+        // First try postcodes.io constituency data
+        if (constituencyData.status === 200 && constituencyData.result && constituencyData.result.length > 0) {
+          constituencyName = constituencyData.result[0];
+        }
+        // Then try OSM data
+        else if (osmData.address) {
           constituencyName = osmData.address.parliamentary_constituency || 
                            osmData.address.constituency || 
                            osmData.address.electoral_district;
@@ -94,9 +107,38 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
           country: postcodeData.result.country,
           constituency: constituencyName ? {
             name: constituencyName,
-            mp: null // MP information not available through OSM
+            mp: null
           } : null
         });
+
+        // If we still don't have constituency data, try one more API
+        if (!constituencyName) {
+          try {
+            const mapitResponse = await fetch(
+              `https://mapit.mysociety.org/postcode/${postcode}?api_key=YOUR_API_KEY`
+            );
+            const mapitData = await mapitResponse.json();
+            console.log('MapIt data:', mapitData);
+            
+            // Look for Westminster constituency in the MapIt response
+            if (mapitData.areas) {
+              const constituency = Object.values(mapitData.areas).find(
+                (area: any) => area.type === 'WMC' // Westminster Constituency
+              );
+              if (constituency) {
+                setPostcodeData(prev => ({
+                  ...prev!,
+                  constituency: {
+                    name: (constituency as any).name,
+                    mp: null
+                  }
+                }));
+              }
+            }
+          } catch (error) {
+            console.error('MapIt API error:', error);
+          }
+        }
       } else {
         setPostcodeError('Invalid postcode');
         setPostcodeData(null);
