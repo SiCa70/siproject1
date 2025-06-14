@@ -71,7 +71,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
 
       if (postcodeData.status === 200) {
         // Get constituency data from postcodes.io
-        const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/autocomplete`);
+        const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/constituency`);
         const constituencyData = await constituencyResponse.json();
         
         console.log('Postcode data:', postcodeData.result);
@@ -89,8 +89,8 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
         let constituencyName = null;
         
         // First try postcodes.io constituency data
-        if (constituencyData.status === 200 && constituencyData.result && constituencyData.result.length > 0) {
-          constituencyName = constituencyData.result[0];
+        if (constituencyData.status === 200 && constituencyData.result) {
+          constituencyName = constituencyData.result.name;
         }
         // Then try OSM data
         else if (osmData.address) {
