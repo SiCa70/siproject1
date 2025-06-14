@@ -65,28 +65,14 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
     setPostcodeError(null);
 
     try {
-      // First, get the postcode data
+      // Get the postcode data
       const postcodeResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
       const postcodeData = await postcodeResponse.json();
 
       if (postcodeData.status === 200) {
-        // Then, get the constituency data
+        // Get the constituency data
         const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/autocomplete`);
         const constituencyData = await constituencyResponse.json();
-
-        let mpInfo = null;
-        if (constituencyData.status === 200 && constituencyData.result) {
-          // Get MP information from the constituency
-          const mpResponse = await fetch(`https://members-api.parliament.uk/api/Members/Search?House=Commons&IsCurrentMember=true&skip=0&take=1&searchText=${encodeURIComponent(constituencyData.result[0])}`);
-          const mpData = await mpResponse.json();
-          
-          if (mpData.items && mpData.items.length > 0) {
-            mpInfo = {
-              name: mpData.items[0].nameDisplayAs,
-              party: mpData.items[0].latestParty.name
-            };
-          }
-        }
 
         setPostcodeData({
           postcode: postcodeData.result.postcode,
@@ -96,7 +82,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
           country: postcodeData.result.country,
           constituency: constituencyData.status === 200 && constituencyData.result ? {
             name: constituencyData.result[0],
-            mp: mpInfo
+            mp: null // We'll add MP information later when we have a proper API key
           } : null
         });
       } else {
@@ -104,7 +90,8 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
         setPostcodeData(null);
       }
     } catch (error) {
-      setPostcodeError('Error looking up postcode');
+      console.error('Postcode lookup error:', error);
+      setPostcodeError('Error looking up postcode. Please try again.');
       setPostcodeData(null);
     } finally {
       setIsLoadingPostcode(false);
