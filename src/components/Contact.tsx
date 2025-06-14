@@ -18,6 +18,7 @@ interface PostcodeData {
       name: string;
       party: string;
     } | null;
+    boundary: string | undefined;
   } | null;
 }
 
@@ -54,6 +55,58 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
     });
   };
 
+  const fetchConstituencyBoundary = async (constituencyName: string) => {
+    try {
+      // Query Overpass API for constituency boundary
+      const query = `
+        [out:json][timeout:25];
+        area["name:en"="${constituencyName}"]["admin_level"="10"]->.constituency;
+        (
+          way(area.constituency)[boundary=administrative];
+          relation(area.constituency)[boundary=administrative];
+        );
+        out body;
+        >;
+        out skel qt;
+      `;
+      
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+      });
+      
+      const data = await response.json();
+      
+      // Convert OSM data to GeoJSON
+      if (data.elements && data.elements.length > 0) {
+        // Create a GeoJSON polygon from the OSM data
+        const coordinates = data.elements
+          .filter((el: any) => el.type === 'way')
+          .map((way: any) => 
+            way.nodes.map((nodeId: number) => {
+              const node = data.elements.find((el: any) => el.id === nodeId);
+              return [node.lon, node.lat];
+            })
+          );
+
+        if (coordinates.length > 0) {
+          return JSON.stringify({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'Polygon',
+              coordinates: [coordinates[0]]
+            }
+          });
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching constituency boundary:', error);
+      return null;
+    }
+  };
+
   const handlePostcodeLookup = async () => {
     const postcode = formData.postcode.replace(/\s+/g, '').toUpperCase();
     if (!postcode) {
@@ -77,26 +130,13 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
         console.log('Postcode data:', postcodeData.result);
         console.log('Constituency data:', constituencyData);
 
-        // Get additional location data from OpenStreetMap
-        const { latitude, longitude } = postcodeData.result;
-        const osmResponse = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=en`
-        );
-        const osmData = await osmResponse.json();
-        console.log('OSM data:', osmData);
-
-        // Try to get constituency name from various sources
         let constituencyName = null;
-        
-        // First try postcodes.io constituency data
+        let boundaryData = null;
+
         if (constituencyData.status === 200 && constituencyData.result) {
           constituencyName = constituencyData.result.name;
-        }
-        // Then try OSM data
-        else if (osmData.address) {
-          constituencyName = osmData.address.parliamentary_constituency || 
-                           osmData.address.constituency || 
-                           osmData.address.electoral_district;
+          // Fetch constituency boundary
+          boundaryData = await fetchConstituencyBoundary(constituencyName);
         }
 
         setPostcodeData({
@@ -107,38 +147,10 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
           country: postcodeData.result.country,
           constituency: constituencyName ? {
             name: constituencyName,
-            mp: null
+            mp: null,
+            boundary: boundaryData || undefined
           } : null
         });
-
-        // If we still don't have constituency data, try one more API
-        if (!constituencyName) {
-          try {
-            const mapitResponse = await fetch(
-              `https://mapit.mysociety.org/postcode/${postcode}?api_key=YOUR_API_KEY`
-            );
-            const mapitData = await mapitResponse.json();
-            console.log('MapIt data:', mapitData);
-            
-            // Look for Westminster constituency in the MapIt response
-            if (mapitData.areas) {
-              const constituency = Object.values(mapitData.areas).find(
-                (area: any) => area.type === 'WMC' // Westminster Constituency
-              );
-              if (constituency) {
-                setPostcodeData(prev => ({
-                  ...prev!,
-                  constituency: {
-                    name: (constituency as any).name,
-                    mp: null
-                  }
-                }));
-              }
-            }
-          } catch (error) {
-            console.error('MapIt API error:', error);
-          }
-        }
       } else {
         setPostcodeError('Invalid postcode');
         setPostcodeData(null);
@@ -350,7 +362,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                           scrolling="no"
                           marginHeight={0}
                           marginWidth={0}
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${postcodeData.longitude - 0.01},${postcodeData.latitude - 0.01},${postcodeData.longitude + 0.01},${postcodeData.latitude + 0.01}&layer=mapnik&marker=${postcodeData.latitude},${postcodeData.longitude}`}
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${postcodeData.longitude - 0.01},${postcodeData.latitude - 0.01},${postcodeData.longitude + 0.01},${postcodeData.latitude + 0.01}&layer=mapnik&marker=${postcodeData.latitude},${postcodeData.longitude}${postcodeData.constituency?.boundary ? `&geojson=${encodeURIComponent(postcodeData.constituency.boundary)}` : ''}`}
                           style={{ border: '1px solid #ccc' }}
                         />
                       </div>
@@ -507,7 +519,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                         scrolling="no"
                         marginHeight={0}
                         marginWidth={0}
-                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${postcodeData.longitude - 0.01},${postcodeData.latitude - 0.01},${postcodeData.longitude + 0.01},${postcodeData.latitude + 0.01}&layer=mapnik&marker=${postcodeData.latitude},${postcodeData.longitude}`}
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${postcodeData.longitude - 0.01},${postcodeData.latitude - 0.01},${postcodeData.longitude + 0.01},${postcodeData.latitude + 0.01}&layer=mapnik&marker=${postcodeData.latitude},${postcodeData.longitude}${postcodeData.constituency?.boundary ? `&geojson=${encodeURIComponent(postcodeData.constituency.boundary)}` : ''}`}
                         style={{ border: '1px solid #ccc' }}
                       />
                     </div>
