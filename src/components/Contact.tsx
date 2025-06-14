@@ -55,58 +55,6 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
     });
   };
 
-  const fetchConstituencyBoundary = async (constituencyName: string) => {
-    try {
-      // Query Overpass API for constituency boundary
-      const query = `
-        [out:json][timeout:25];
-        area["name:en"="${constituencyName}"]["admin_level"="10"]->.constituency;
-        (
-          way(area.constituency)[boundary=administrative];
-          relation(area.constituency)[boundary=administrative];
-        );
-        out body;
-        >;
-        out skel qt;
-      `;
-      
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: query
-      });
-      
-      const data = await response.json();
-      
-      // Convert OSM data to GeoJSON
-      if (data.elements && data.elements.length > 0) {
-        // Create a GeoJSON polygon from the OSM data
-        const coordinates = data.elements
-          .filter((el: any) => el.type === 'way')
-          .map((way: any) => 
-            way.nodes.map((nodeId: number) => {
-              const node = data.elements.find((el: any) => el.id === nodeId);
-              return [node.lon, node.lat];
-            })
-          );
-
-        if (coordinates.length > 0) {
-          return JSON.stringify({
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'Polygon',
-              coordinates: [coordinates[0]]
-            }
-          });
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error('Error fetching constituency boundary:', error);
-      return null;
-    }
-  };
-
   const handlePostcodeLookup = async () => {
     const postcode = formData.postcode.replace(/\s+/g, '').toUpperCase();
     if (!postcode) {
@@ -131,12 +79,66 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
         console.log('Constituency data:', constituencyData);
 
         let constituencyName = null;
-        let boundaryData = null;
-
         if (constituencyData.status === 200 && constituencyData.result) {
           constituencyName = constituencyData.result.name;
-          // Fetch constituency boundary
-          boundaryData = await fetchConstituencyBoundary(constituencyName);
+        }
+
+        // Get boundary data from OpenStreetMap
+        let boundaryData = null;
+        if (constituencyName) {
+          try {
+            // Query Overpass API for constituency boundary
+            const query = `
+              [out:json][timeout:25];
+              area["name:en"="${constituencyName}"]["admin_level"="10"]->.constituency;
+              (
+                way(area.constituency)[boundary=administrative];
+                relation(area.constituency)[boundary=administrative];
+              );
+              out body;
+              >;
+              out skel qt;
+            `;
+            
+            const osmResponse = await fetch('https://overpass-api.de/api/interpreter', {
+              method: 'POST',
+              body: query,
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            });
+            
+            const osmData = await osmResponse.json();
+            console.log('OSM boundary data:', osmData);
+
+            if (osmData.elements && osmData.elements.length > 0) {
+              // Create a GeoJSON polygon from the OSM data
+              const ways = osmData.elements.filter((el: any) => el.type === 'way');
+              if (ways.length > 0) {
+                const coordinates = ways[0].nodes.map((nodeId: number) => {
+                  const node = osmData.elements.find((el: any) => el.id === nodeId);
+                  return [node.lon, node.lat];
+                });
+
+                boundaryData = JSON.stringify({
+                  type: 'Feature',
+                  properties: {
+                    name: constituencyName,
+                    fill: '#3388ff',
+                    fillOpacity: 0.2,
+                    stroke: '#3388ff',
+                    strokeWidth: 2
+                  },
+                  geometry: {
+                    type: 'Polygon',
+                    coordinates: [coordinates]
+                  }
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching boundary:', error);
+          }
         }
 
         setPostcodeData({
