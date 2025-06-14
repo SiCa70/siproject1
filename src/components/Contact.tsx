@@ -70,9 +70,21 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
       const postcodeData = await postcodeResponse.json();
 
       if (postcodeData.status === 200) {
-        // Get the constituency data
-        const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/autocomplete`);
-        const constituencyData = await constituencyResponse.json();
+        // Get constituency information from OpenStreetMap
+        const { latitude, longitude } = postcodeData.result;
+        const osmResponse = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=en`
+        );
+        const osmData = await osmResponse.json();
+
+        // Extract constituency information from OSM data
+        let constituencyName = null;
+        if (osmData.address) {
+          // Try different possible fields for constituency
+          constituencyName = osmData.address.parliamentary_constituency || 
+                           osmData.address.constituency || 
+                           osmData.address.electoral_district;
+        }
 
         setPostcodeData({
           postcode: postcodeData.result.postcode,
@@ -80,9 +92,9 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
           longitude: postcodeData.result.longitude,
           region: postcodeData.result.region,
           country: postcodeData.result.country,
-          constituency: constituencyData.status === 200 && constituencyData.result ? {
-            name: constituencyData.result[0],
-            mp: null // We'll add MP information later when we have a proper API key
+          constituency: constituencyName ? {
+            name: constituencyName,
+            mp: null // MP information not available through OSM
           } : null
         });
       } else {
@@ -275,7 +287,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                       <span>{postcodeData.region}, {postcodeData.country}</span>
                     </div>
 
-                    {/* Constituency and MP Info */}
+                    {/* Constituency Info */}
                     {postcodeData.constituency && (
                       <div className="border-t border-gray-200 pt-4">
                         <div className="space-y-2">
@@ -284,14 +296,6 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                             <span className="font-medium">Constituency:</span>
                             <span>{postcodeData.constituency.name}</span>
                           </div>
-                          {postcodeData.constituency.mp && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <User className="h-4 w-4 text-blue-600" />
-                              <span className="font-medium">MP:</span>
-                              <span>{postcodeData.constituency.mp.name}</span>
-                              <span className="text-gray-500">({postcodeData.constituency.mp.party})</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
