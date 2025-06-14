@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Phone, MessageCircle, Send, MapPin, Clock, Search } from 'lucide-react';
+import { Mail, Phone, MessageCircle, Send, MapPin, Clock, Search, User } from 'lucide-react';
 
 interface ContactProps {
   isModal?: boolean;
@@ -12,6 +12,13 @@ interface PostcodeData {
   longitude: number;
   region: string;
   country: string;
+  constituency: {
+    name: string;
+    mp: {
+      name: string;
+      party: string;
+    } | null;
+  } | null;
 }
 
 const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
@@ -58,16 +65,39 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
     setPostcodeError(null);
 
     try {
-      const response = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
-      const data = await response.json();
+      // First, get the postcode data
+      const postcodeResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
+      const postcodeData = await postcodeResponse.json();
 
-      if (data.status === 200) {
+      if (postcodeData.status === 200) {
+        // Then, get the constituency data
+        const constituencyResponse = await fetch(`https://api.postcodes.io/postcodes/${postcode}/autocomplete`);
+        const constituencyData = await constituencyResponse.json();
+
+        let mpInfo = null;
+        if (constituencyData.status === 200 && constituencyData.result) {
+          // Get MP information from the constituency
+          const mpResponse = await fetch(`https://members-api.parliament.uk/api/Members/Search?House=Commons&IsCurrentMember=true&skip=0&take=1&searchText=${encodeURIComponent(constituencyData.result[0])}`);
+          const mpData = await mpResponse.json();
+          
+          if (mpData.items && mpData.items.length > 0) {
+            mpInfo = {
+              name: mpData.items[0].nameDisplayAs,
+              party: mpData.items[0].latestParty.name
+            };
+          }
+        }
+
         setPostcodeData({
-          postcode: data.result.postcode,
-          latitude: data.result.latitude,
-          longitude: data.result.longitude,
-          region: data.result.region,
-          country: data.result.country
+          postcode: postcodeData.result.postcode,
+          latitude: postcodeData.result.latitude,
+          longitude: postcodeData.result.longitude,
+          region: postcodeData.result.region,
+          country: postcodeData.result.country,
+          constituency: constituencyData.status === 200 && constituencyData.result ? {
+            name: constituencyData.result[0],
+            mp: mpInfo
+          } : null
         });
       } else {
         setPostcodeError('Invalid postcode');
@@ -231,7 +261,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                     value={formData.postcode}
                     onChange={handleChange}
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-                    placeholder="Enter UK postcode"
+                    placeholder="Enter UK postcode (e.g., SW1A 1AA)"
                   />
                   <button
                     type="button"
@@ -248,14 +278,39 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                 )}
               </div>
 
-              {/* Map Display */}
+              {/* Map and MP Information Display */}
               {postcodeData && (
-                <div className="mt-4">
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <div className="text-sm text-gray-600 mb-2">
-                      Location: {postcodeData.region}, {postcodeData.country}
+                <div className="mt-4 bg-gray-50 rounded-xl p-4">
+                  <div className="space-y-4">
+                    {/* Location Info */}
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 text-blue-600" />
+                      <span>{postcodeData.region}, {postcodeData.country}</span>
                     </div>
-                    <div className="aspect-video rounded-lg overflow-hidden">
+
+                    {/* Constituency and MP Info */}
+                    {postcodeData.constituency && (
+                      <div className="border-t border-gray-200 pt-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium">Constituency:</span>
+                            <span>{postcodeData.constituency.name}</span>
+                          </div>
+                          {postcodeData.constituency.mp && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <User className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium">MP:</span>
+                              <span>{postcodeData.constituency.mp.name}</span>
+                              <span className="text-gray-500">({postcodeData.constituency.mp.party})</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Map */}
+                    <div className="aspect-video rounded-lg overflow-hidden mt-4 border border-gray-200">
                       <iframe
                         width="100%"
                         height="100%"
@@ -267,7 +322,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                         style={{ border: '1px solid #ccc' }}
                       />
                     </div>
-                    <div className="mt-2 text-xs text-gray-500 text-center">
+                    <div className="text-xs text-gray-500 text-center">
                       <a
                         href={`https://www.openstreetmap.org/?mlat=${postcodeData.latitude}&mlon=${postcodeData.longitude}#map=15/${postcodeData.latitude}/${postcodeData.longitude}`}
                         target="_blank"
