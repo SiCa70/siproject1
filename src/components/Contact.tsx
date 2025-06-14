@@ -153,8 +153,8 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
   };
 
   const contactContent = (
-    <div className={isModal ? "" : "py-20 bg-white"}>
-      <div className={isModal ? "" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"}>
+    <div className={isModal ? "w-full max-w-2xl mx-auto" : "py-20 bg-white"}>
+      <div className={isModal ? "w-full" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"}>
         {!isModal && (
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
@@ -167,9 +167,9 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
-          {/* Contact Information */}
-          {!isModal && (
+        {!isModal ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
+            {/* Contact Information */}
             <div className="space-y-8">
               <div>
                 <h3 className="text-3xl font-bold text-gray-900 mb-6">Get in Touch</h3>
@@ -221,10 +221,166 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Contact Form */}
-          <div className={isModal ? "w-full" : ""}>
+            {/* Contact Form */}
+            <div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-semibold text-gray-900 mb-2">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    placeholder="Your name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-900 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    placeholder="your.email@company.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="company" className="block text-sm font-semibold text-gray-900 mb-2">
+                    Company
+                  </label>
+                  <input
+                    type="text"
+                    id="company"
+                    name="company"
+                    value={formData.company}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    placeholder="Your company name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="message" className="block text-sm font-semibold text-gray-900 mb-2">
+                    Message *
+                  </label>
+                  <textarea
+                    id="message"
+                    name="message"
+                    required
+                    rows={5}
+                    value={formData.message}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white resize-none"
+                    placeholder="Tell us about your business goals and how we can help..."
+                  />
+                </div>
+
+                {/* Postcode Lookup */}
+                <div>
+                  <label htmlFor="postcode" className="block text-sm font-semibold text-gray-900 mb-2">
+                    UK Postcode (Optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      id="postcode"
+                      name="postcode"
+                      value={formData.postcode}
+                      onChange={handleChange}
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                      placeholder="Enter UK postcode (e.g., SW1A 1AA)"
+                    />
+                    <button
+                      type="button"
+                      onClick={handlePostcodeLookup}
+                      disabled={isLoadingPostcode}
+                      className="px-4 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Search className="h-5 w-5" />
+                      {isLoadingPostcode ? 'Searching...' : 'Lookup'}
+                    </button>
+                  </div>
+                  {postcodeError && (
+                    <p className="mt-2 text-sm text-red-600">{postcodeError}</p>
+                  )}
+                </div>
+
+                {/* Map and MP Information Display */}
+                {postcodeData && (
+                  <div className="mt-4 bg-gray-50 rounded-xl p-4">
+                    <div className="space-y-4">
+                      {/* Location Info */}
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <MapPin className="h-4 w-4 text-blue-600" />
+                        <span>{postcodeData.region}, {postcodeData.country}</span>
+                      </div>
+
+                      {/* Constituency Info */}
+                      {postcodeData.constituency && (
+                        <div className="border-t border-gray-200 pt-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm">
+                              <MapPin className="h-4 w-4 text-blue-600" />
+                              <span className="font-medium">Constituency:</span>
+                              <span>{postcodeData.constituency.name}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Map */}
+                      <div className="aspect-video rounded-lg overflow-hidden mt-4 border border-gray-200">
+                        <iframe
+                          width="100%"
+                          height="100%"
+                          frameBorder="0"
+                          scrolling="no"
+                          marginHeight={0}
+                          marginWidth={0}
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${postcodeData.longitude - 0.01},${postcodeData.latitude - 0.01},${postcodeData.longitude + 0.01},${postcodeData.latitude + 0.01}&layer=mapnik&marker=${postcodeData.latitude},${postcodeData.longitude}`}
+                          style={{ border: '1px solid #ccc' }}
+                        />
+                      </div>
+                      <div className="text-xs text-gray-500 text-center">
+                        <a
+                          href={`https://www.openstreetmap.org/?mlat=${postcodeData.latitude}&mlon=${postcodeData.longitude}#map=15/${postcodeData.latitude}/${postcodeData.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          View Larger Map
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center justify-center space-x-2"
+                >
+                  <Send className="h-5 w-5" />
+                  <span>Send Message</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : (
+          // Modal version - centered single column
+          <div className="w-full">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="name" className="block text-sm font-semibold text-gray-900 mb-2">
@@ -378,7 +534,7 @@ const Contact: React.FC<ContactProps> = ({ isModal = false, onClose }) => {
               </button>
             </form>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
